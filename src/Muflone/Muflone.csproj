@@ -1,0 +1,30 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>netstandard2.0</TargetFramework>
+    <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
+    <PackageRequireLicenseAcceptance>true</PackageRequireLicenseAcceptance>
+    <Description>A CQRS and event store library</Description>
+    <Copyright>Alessandro Colla and contributors</Copyright>
+    <PackageProjectUrl>https://github.com/CQRS-Muflone/Muflone/</PackageProjectUrl>
+    <RepositoryUrl>https://github.com/CQRS-Muflone/Muflone/</RepositoryUrl>
+    <PackageTags>CQRS, Eventsourcing, Eventstore</PackageTags>
+    <AssemblyVersion>0.9.3.0</AssemblyVersion>
+    <FileVersion>0.9.3.0</FileVersion>
+    <PackageLicenseUrl></PackageLicenseUrl>
+    <Version>0.9.3</Version>
+    <Authors>Alessandro Colla</Authors>
+    <Company>CQRS-Muflone</Company>
+    <NeutralLanguage>en</NeutralLanguage>
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Folder Include="Properties\" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="3.1.4" />
+  </ItemGroup>
+
+</Project>
