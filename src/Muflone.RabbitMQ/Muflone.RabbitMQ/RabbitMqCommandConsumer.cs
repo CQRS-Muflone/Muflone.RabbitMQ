@@ -1,10 +1,9 @@
 ﻿using System;
-using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
 using Muflone.Messages.Commands;
-using Newtonsoft.Json;
+using Muflone.RabbitMQ.Factories;
 using RabbitMQ.Client;
 using RabbitMQ.Client.Events;
 
@@ -19,21 +18,12 @@ namespace Muflone.RabbitMQ
         public RabbitMqCommandConsumer(ICommandHandler<TCommand> commandHandler,
             ILoggerFactory loggerFactory, BrokerProperties brokerProperties)
         {
-            if (brokerProperties == null)
-                throw new ArgumentNullException(nameof(brokerProperties));
-
-            var connectionFactory = new ConnectionFactory
-            {
-                HostName = brokerProperties.HostName,
-                UserName = brokerProperties.Username,
-                Password = brokerProperties.Password
-            };
-
             this.logger = loggerFactory.CreateLogger(this.GetType());
 
-            var connection = connectionFactory.CreateConnection();
+            var connectionFactory = RabbitMqFactories.CreateConnectionFactory(brokerProperties);
+            var connection = RabbitMqFactories.CreateConnection(connectionFactory);
+            this.rabbitMqChannel = RabbitMqFactories.CreateChannel(connection);
 
-            this.rabbitMqChannel = connection.CreateModel();
             this.rabbitMqChannel.QueueDeclare(typeof(TCommand).Name, true, false, false, null);
 
             if (commandHandler == null)
@@ -41,9 +31,8 @@ namespace Muflone.RabbitMQ
 
             this.commandHandler = commandHandler;
 
-            var rabbitMqConsumer = new EventingBasicConsumer(this.rabbitMqChannel);
+            var rabbitMqConsumer = RabbitMqFactories.CreateEventingBasicCosumer(this.rabbitMqChannel);
             rabbitMqConsumer.Received += this.CommandConsumer;
-
             this.rabbitMqChannel.BasicConsume(typeof(TCommand).Name, true, rabbitMqConsumer);
         }
 
@@ -51,7 +40,7 @@ namespace Muflone.RabbitMQ
         {
             try
             {
-                var mufloneCommand = MapRabbitMqMessageToMuflone(e.Body);
+                var mufloneCommand = RabbitMqMappers.MapRabbitMqMessageToMuflone<TCommand>(e.Body);
                 this.commandHandler.Handle(mufloneCommand);
             }
             catch (Exception ex)
@@ -64,7 +53,7 @@ namespace Muflone.RabbitMQ
         {
             try
             {
-                var messageBody = MapMufloneMessageToRabbitMq(command);
+                var messageBody = RabbitMqMappers.MapMufloneMessageToRabbitMq(command);
                 this.rabbitMqChannel.BasicPublish("", typeof(TCommand).Name, null, messageBody);
 
                 await Task.Yield();
@@ -74,17 +63,5 @@ namespace Muflone.RabbitMQ
                 this.logger.LogError(ex, $"Original Message to Send: {command}");
             }
         }
-
-        #region Helpers
-        private static byte[] MapMufloneMessageToRabbitMq(TCommand command) =>
-            Encoding.UTF8.GetBytes(JsonConvert.SerializeObject(command));
-
-        private static TCommand MapRabbitMqMessageToMuflone(ReadOnlyMemory<byte> rabbitMqMessage)
-        {
-            var messageBody = Encoding.UTF8.GetString(rabbitMqMessage.ToArray());
-
-            return JsonConvert.DeserializeObject<TCommand>(messageBody);
-        }
-        #endregion
     }
 }

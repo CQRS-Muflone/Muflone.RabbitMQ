@@ -39,6 +39,9 @@ namespace Muflone.RabbitMQ.Test
             
             var myCommand = new MyCommand(new MyDomainId(Guid.NewGuid()));
             await commandConsumer.Send(myCommand, new CancellationToken(false));
+
+            Thread.Sleep(1000);
+            Assert.Equal("I am a command", TestResult.CommandContent);
         }
 
         public class MyDomainId : DomainId
@@ -66,8 +69,14 @@ namespace Muflone.RabbitMQ.Test
 
             public override Task Handle(MyCommand command)
             {
+                TestResult.CommandContent = command.CommandContent;
                 return Task.CompletedTask;
             }
+        }
+
+        public static class TestResult
+        {
+            public static string CommandContent;
         }
     }
 }
