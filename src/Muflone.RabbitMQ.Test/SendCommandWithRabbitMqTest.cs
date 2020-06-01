@@ -33,6 +33,22 @@ namespace Muflone.RabbitMQ.Test
                 Username = "guest",
                 Password = "guest"
             };
+            var commandConsumer =
+                new RabbitMqCommandConsumer<MyCommand>(null, new NullLoggerFactory(), brokerProperties);
+
+            var myCommand = new MyCommand(new MyDomainId(Guid.NewGuid()));
+            await commandConsumer.Send(myCommand, new CancellationToken(false));
+        }
+
+        [Fact]
+        public async Task Can_Receive_Command_With_RabbitMQ_Muflone_Provider()
+        {
+            var brokerProperties = new BrokerProperties
+            {
+                HostName = "localhost",
+                Username = "guest",
+                Password = "guest"
+            };
             var myCommandHandler = new MyCommandCommandHandler(new InMemoryRepository(), new NullLoggerFactory());
             var commandConsumer =
                 new RabbitMqCommandConsumer<MyCommand>(myCommandHandler, new NullLoggerFactory(), brokerProperties);

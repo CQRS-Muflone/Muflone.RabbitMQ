@@ -33,6 +33,21 @@ namespace Muflone.RabbitMQ.Test
                 Username = "guest",
                 Password = "guest"
             };
+            var domainEventConsumer = 
+                new RabbitMqDomainEventConsumer<MyEvent>(null, new NullLoggerFactory(), brokerProperties);
+            var myEvent = new MyEvent(new MyDomainId(Guid.NewGuid()));
+            await domainEventConsumer.Publish(myEvent);
+        }
+
+        [Fact]
+        public async Task Can_Receive_DomainEvent_With_RabbitMQ_Muflone_Provider()
+        {
+            var brokerProperties = new BrokerProperties
+            {
+                HostName = "localhost",
+                Username = "guest",
+                Password = "guest"
+            };
             var myEventHandler = new MyEventHandler(new InMemoryPersister(), new NullLoggerFactory());
             var domainEventConsumer =
                 new RabbitMqDomainEventConsumer<MyEvent>(myEventHandler, new NullLoggerFactory(), brokerProperties);

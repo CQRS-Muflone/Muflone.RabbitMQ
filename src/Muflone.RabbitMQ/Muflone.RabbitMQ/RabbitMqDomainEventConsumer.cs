@@ -30,8 +30,8 @@ namespace Muflone.RabbitMQ
 
             this.eventHandler = eventHandler;
 
-            var queueName = this.rabbitMqChannel.QueueDeclare().QueueName;
-            this.rabbitMqChannel.QueueBind(queueName,
+            this.rabbitMqChannel.QueueDeclare(typeof(TEvent).Name, true, false, false, null);
+            this.rabbitMqChannel.QueueBind(typeof(TEvent).Name,
                 typeof(TEvent).Name,"");
             var rabbitMqConsumer = RabbitMqFactories.CreateEventingBasicCosumer(this.rabbitMqChannel);
             rabbitMqConsumer.Received += this.EventConsumer;
