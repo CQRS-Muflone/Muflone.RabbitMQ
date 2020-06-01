@@ -3,7 +3,7 @@ using System.Text;
 using Muflone.Messages;
 using Newtonsoft.Json;
 
-namespace Muflone.RabbitMQ
+namespace Muflone.RabbitMQ.Helpers
 {
     public static class RabbitMqMappers
     {

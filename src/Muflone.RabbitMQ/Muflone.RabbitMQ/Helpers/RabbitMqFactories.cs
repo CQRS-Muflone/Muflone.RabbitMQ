@@ -1,11 +1,8 @@
 ﻿using System;
-using System.Text;
-using Muflone.Messages.Commands;
-using Newtonsoft.Json;
 using RabbitMQ.Client;
 using RabbitMQ.Client.Events;
 
-namespace Muflone.RabbitMQ.Factories
+namespace Muflone.RabbitMQ.Helpers
 {
     internal static class RabbitMqFactories
     {

@@ -3,7 +3,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
 using Muflone.Messages.Events;
-using Muflone.RabbitMQ.Factories;
+using Muflone.RabbitMQ.Helpers;
 using RabbitMQ.Client;
 using RabbitMQ.Client.Events;
 
