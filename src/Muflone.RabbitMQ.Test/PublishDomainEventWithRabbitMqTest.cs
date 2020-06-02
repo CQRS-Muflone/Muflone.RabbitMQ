@@ -19,7 +19,7 @@ namespace Muflone.RabbitMQ.Test
 
             var exception =
                 Assert.ThrowsAny<Exception>(() =>
-                    new RabbitMqDomainEventConsumer<MyEvent>(myEventHandler, new NullLoggerFactory(), null));
+                    new DomainEventConsumerBase<MyEvent>(myEventHandler, new NullLoggerFactory(), null));
 
             Assert.Equal("Value cannot be null. (Parameter 'brokerProperties')", exception.Message);
         }
@@ -34,7 +34,7 @@ namespace Muflone.RabbitMQ.Test
                 Password = "guest"
             };
             var domainEventConsumer = 
-                new RabbitMqDomainEventConsumer<MyEvent>(null, new NullLoggerFactory(), brokerProperties);
+                new DomainEventConsumerBase<MyEvent>(null, new NullLoggerFactory(), brokerProperties);
             var myEvent = new MyEvent(new MyDomainId(Guid.NewGuid()));
             await domainEventConsumer.Publish(myEvent);
         }
@@ -50,7 +50,7 @@ namespace Muflone.RabbitMQ.Test
             };
             var myEventHandler = new MyEventHandler(new InMemoryPersister(), new NullLoggerFactory());
             var domainEventConsumer =
-                new RabbitMqDomainEventConsumer<MyEvent>(myEventHandler, new NullLoggerFactory(), brokerProperties);
+                new DomainEventConsumerBase<MyEvent>(myEventHandler, new NullLoggerFactory(), brokerProperties);
             var myEvent = new MyEvent(new MyDomainId(Guid.NewGuid()));
             await domainEventConsumer.Publish(myEvent);
 
