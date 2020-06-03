@@ -3,56 +3,73 @@ using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.Extensions.Options;
 using Muflone.Core;
 using Muflone.Messages.Events;
 using Muflone.Persistence;
+using Muflone.RabbitMQ.Consumers;
 using Xunit;
 
 namespace Muflone.RabbitMQ.Test
 {
     public class PublishDomainEventWithRabbitMqTest
     {
-        [Fact]
-        public void Cannot_Create_DomainEventConsumer_Without_BrokerProperties()
+        private readonly IBusControl busControl;
+
+        public PublishDomainEventWithRabbitMqTest()
         {
-            var myEventHandler = new MyEventHandler(new InMemoryPersister(), new NullLoggerFactory());
-
-            var exception =
-                Assert.ThrowsAny<Exception>(() =>
-                    new DomainEventConsumerBase<MyEvent>(myEventHandler, new NullLoggerFactory(), null));
-
-            Assert.Equal("Value cannot be null. (Parameter 'brokerProperties')", exception.Message);
-        }
-
-        [Fact]
-        public async Task Can_Publish_DomainEvent_With_RabbitMQ_Muflone_Provider()
-        {
-            var brokerProperties = new BrokerProperties
+            var options = Options.Create(new BrokerProperties
             {
                 HostName = "localhost",
                 Username = "guest",
                 Password = "guest"
-            };
-            var domainEventConsumer = 
-                new DomainEventConsumerBase<MyEvent>(null, new NullLoggerFactory(), brokerProperties);
+            });
+
+            this.busControl = new BusControl(options);
+        }
+
+        [Fact]
+        public void Cannot_Create_DomainEventConsumer_Without_BusControl()
+        {
+            var exception =
+                Assert.ThrowsAny<Exception>(() =>
+                    new DomainEventConsumerBase<MyEvent>(null, null, new NullLoggerFactory()));
+
+            Assert.Equal("Value cannot be null. (Parameter 'busControl')", exception.Message);
+        }
+
+        [Fact]
+        public void Cannot_Create_DomainEventConsumer_Without_EventHandler()
+        {
+            var exception =
+                Assert.ThrowsAny<Exception>(() =>
+                    new DomainEventConsumerBase<MyEvent>(this.busControl, null, new NullLoggerFactory()));
+
+            Assert.Equal("Value cannot be null. (Parameter 'eventHandler')", exception.Message);
+        }
+
+        [Fact]
+        public async Task Can_Publish_DomainEvent_With_ServiceBus()
+        {
+            var options = Options.Create(new BrokerProperties
+            {
+                HostName = "localhost",
+                Username = "guest",
+                Password = "guest"
+            });
+            var serviceBus = new ServiceBus(this.busControl, new NullLoggerFactory(), options);
+
             var myEvent = new MyEvent(new MyDomainId(Guid.NewGuid()));
-            await domainEventConsumer.Publish(myEvent);
+            await serviceBus.Publish(myEvent);
         }
 
         [Fact]
         public async Task Can_Receive_DomainEvent_With_RabbitMQ_Muflone_Provider()
         {
-            var brokerProperties = new BrokerProperties
-            {
-                HostName = "localhost",
-                Username = "guest",
-                Password = "guest"
-            };
             var myEventHandler = new MyEventHandler(new InMemoryPersister(), new NullLoggerFactory());
             var domainEventConsumer =
-                new DomainEventConsumerBase<MyEvent>(myEventHandler, new NullLoggerFactory(), brokerProperties);
+                new DomainEventConsumerBase<MyEvent>(this.busControl, myEventHandler, new NullLoggerFactory());
             var myEvent = new MyEvent(new MyDomainId(Guid.NewGuid()));
-            await domainEventConsumer.Publish(myEvent);
 
             Thread.Sleep(1000);
             Assert.Equal("I am a DomainEvent", TestResult.DomainEventContent);

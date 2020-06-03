@@ -1,6 +1,7 @@
 ﻿using System.Threading.Tasks;
 using Muflone.Persistence;
 
+
 namespace Muflone.RabbitMQ.Test
 {
     public class InMemoryPersister : IPersister

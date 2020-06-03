@@ -6,6 +6,6 @@ namespace Muflone.RabbitMQ.Abstracts.Commands
 {
     public interface ICommandConsumer<in TCommand> where TCommand : ICommand
     {
-        Task Send(TCommand command, CancellationToken cancellationToken = default);
+        Task Consume(CancellationToken cancellationToken = default);
     }
 }

@@ -24,8 +24,8 @@ namespace Muflone.RabbitMQ.Helpers
 
         internal static IModel CreateChannel(IConnection connection) => connection.CreateModel();
 
-        internal static EventingBasicConsumer CreateEventingBasicCosumer(IModel channel) =>
-            new EventingBasicConsumer(channel);
+        internal static AsyncEventingBasicConsumer CreateEventingBasicCosumer(IModel channel) =>
+            new AsyncEventingBasicConsumer(channel);
 
         internal static IModel CreateChannel(BrokerProperties brokerProperties)
         {
