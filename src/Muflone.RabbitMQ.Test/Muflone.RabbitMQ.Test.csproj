@@ -21,7 +21,6 @@
 
   <ItemGroup>
     <ProjectReference Include="..\Muflone.RabbitMQ\Muflone.RabbitMQ\Muflone.RabbitMQ.csproj" />
-    <ProjectReference Include="..\Muflone\Muflone.csproj" />
     <ProjectReference Include="..\Muflone\src\Muflone\Muflone.csproj" />
   </ItemGroup>
 

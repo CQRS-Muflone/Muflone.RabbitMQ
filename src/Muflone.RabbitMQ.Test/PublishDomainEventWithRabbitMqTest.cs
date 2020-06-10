@@ -33,7 +33,7 @@ namespace Muflone.RabbitMQ.Test
         {
             var exception =
                 Assert.ThrowsAny<Exception>(() =>
-                    new DomainEventConsumerBase<MyEvent>(null, null, new NullLoggerFactory()));
+                    new DomainEventConsumer<MyEvent>(null, null, new NullLoggerFactory()));
 
             Assert.Equal("Value cannot be null. (Parameter 'busControl')", exception.Message);
         }
@@ -43,7 +43,7 @@ namespace Muflone.RabbitMQ.Test
         {
             var exception =
                 Assert.ThrowsAny<Exception>(() =>
-                    new DomainEventConsumerBase<MyEvent>(this.busControl, null, new NullLoggerFactory()));
+                    new DomainEventConsumer<MyEvent>(this.busControl, null, new NullLoggerFactory()));
 
             Assert.Equal("Value cannot be null. (Parameter 'eventHandler')", exception.Message);
         }
@@ -60,6 +60,11 @@ namespace Muflone.RabbitMQ.Test
             var serviceBus = new ServiceBus(this.busControl, new NullLoggerFactory(), options);
 
             var myEvent = new MyEvent(new MyDomainId(Guid.NewGuid()));
+
+            var cancellationTokenSource = new CancellationTokenSource();
+            var cancellationToken = cancellationTokenSource.Token;
+
+            await serviceBus.StartAsync(cancellationToken);
             await serviceBus.Publish(myEvent);
         }
 
@@ -68,10 +73,13 @@ namespace Muflone.RabbitMQ.Test
         {
             var myEventHandler = new MyEventHandler(new InMemoryPersister(), new NullLoggerFactory());
             var domainEventConsumer =
-                new DomainEventConsumerBase<MyEvent>(this.busControl, myEventHandler, new NullLoggerFactory());
-            var myEvent = new MyEvent(new MyDomainId(Guid.NewGuid()));
+                new DomainEventConsumer<MyEvent>(this.busControl, myEventHandler, new NullLoggerFactory());
 
-            Thread.Sleep(1000);
+            var cancellationTokenSource = new CancellationTokenSource();
+            var cancellationToken = cancellationTokenSource.Token;
+            await domainEventConsumer.Consume(cancellationToken);
+
+            Thread.Sleep(2000);
             Assert.Equal("I am a DomainEvent", TestResult.DomainEventContent);
         }
 

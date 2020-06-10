@@ -11,11 +11,11 @@ using Xunit;
 
 namespace Muflone.RabbitMQ.Test
 {
-    public class SendCommandWithRabbitMqTest
+    public class CommandConsumerWithRabbitMqTest
     {
         private readonly IBusControl busControl;
 
-        public SendCommandWithRabbitMqTest()
+        public CommandConsumerWithRabbitMqTest()
         {
             var options = Options.Create(new BrokerProperties
             {
@@ -58,28 +58,26 @@ namespace Muflone.RabbitMQ.Test
             var serviceBus = new ServiceBus(this.busControl, new NullLoggerFactory(), options);
 
             var myCommand = new MyCommand(new MyDomainId(Guid.NewGuid()));
-            var mySecondCommand = new MySecondCommand(new MyDomainId(Guid.NewGuid()));
-            
+
+            var cancellationTokenSource = new CancellationTokenSource();
+            var cancellationToken = cancellationTokenSource.Token;
+
+            await serviceBus.StartAsync(cancellationToken);
             await serviceBus.Send(myCommand);
-            await serviceBus.Send(mySecondCommand);
         }
 
         [Fact]
         public async Task Can_Receive_Command_With_RabbitMQ_Muflone_Provider()
         {
-            var options = Options.Create(new BrokerProperties
-            {
-                HostName = "localhost",
-                Username = "guest",
-                Password = "guest"
-            });
             var myCommandHandler = new MyCommandCommandHandler(new InMemoryRepository(), new NullLoggerFactory());
             var commandConsumer =
-                new CommandConsumer<MyCommand>(myCommandHandler, new NullLoggerFactory(), options);
+                new CommandConsumer<MyCommand>(this.busControl, myCommandHandler, new NullLoggerFactory());
 
-            await commandConsumer.Consume(new CancellationToken(false));
+            var cancellationTokenSource = new CancellationTokenSource();
+            var cancellationToken = cancellationTokenSource.Token;
+            await commandConsumer.Consume(cancellationToken);
 
-            Thread.Sleep(1000);
+            Thread.Sleep(2000);
             Assert.Equal("I am a command", TestResult.CommandContent);
         }
 

@@ -4,7 +4,7 @@ using Muflone.Messages.Events;
 
 namespace Muflone.RabbitMQ.Abstracts.Events
 {
-    public interface IDomainEventConsumer<in TEvent> where TEvent : IDomainEvent
+    public interface IIntegrationEventConsumer<in TEvent> where TEvent : IIntegrationEvent
     {
         Task Consume(CancellationToken cancellationToken = default);
     }

@@ -11,19 +11,23 @@ namespace Muflone.RabbitMQ
 {
     public class BusControl : IBusControl
     {
+        private readonly BrokerProperties brokerProperties;
+
         public IModel RabbitMQChannel { get; private set; }
 
         public BusControl(IOptions<BrokerProperties> options)
         {
-            var connectionFactory = RabbitMqFactories.CreateConnectionFactory(options.Value);
-            var connection = RabbitMqFactories.CreateConnection(connectionFactory);
-
-            this.RabbitMQChannel = RabbitMqFactories.CreateChannel(connection);
+            this.brokerProperties = options.Value;
         }
 
         public Task Start(CancellationToken cancellationToken = default)
         {
-            throw new NotImplementedException();
+            var connectionFactory = RabbitMqFactories.CreateConnectionFactory(this.brokerProperties);
+            var connection = RabbitMqFactories.CreateConnection(connectionFactory);
+
+            this.RabbitMQChannel = RabbitMqFactories.CreateChannel(connection);
+
+            return Task.CompletedTask;
         }
 
         public Task Stop(CancellationToken cancellationToken = default)

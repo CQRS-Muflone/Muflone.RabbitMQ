@@ -10,15 +10,15 @@ using RabbitMQ.Client.Events;
 
 namespace Muflone.RabbitMQ.Consumers
 {
-    public abstract class DomainEventConsumerBase<TEvent> : IDomainEventConsumer<TEvent> where TEvent: class, IDomainEvent
+    public abstract class IntegrationEventConsumerBase<TEvent> : IIntegrationEventConsumer<TEvent> where TEvent: class, IIntegrationEvent
     {
         protected readonly IBusControl BusControl;
-        protected readonly IDomainEventHandler<TEvent> EventHandler;
+        protected readonly IIntegrationEventHandler<TEvent> EventHandler;
         protected readonly AsyncEventingBasicConsumer RabbitMQConsumer;
         protected readonly ILogger Logger;
 
-        protected DomainEventConsumerBase(IBusControl busControl,
-            IDomainEventHandler<TEvent> eventHandler,
+        protected IntegrationEventConsumerBase(IBusControl busControl,
+            IIntegrationEventHandler<TEvent> eventHandler,
             ILoggerFactory loggerFactory)
         {
             this.BusControl = busControl ?? throw new NullReferenceException($"Value cannot be null. (Parameter '{nameof(busControl)}')");
@@ -34,8 +34,8 @@ namespace Muflone.RabbitMQ.Consumers
 
             this.BusControl.RabbitMQChannel.QueueDeclare(typeof(TEvent).Name, true, false, false, null);
             this.BusControl.RabbitMQChannel.QueueBind(typeof(TEvent).Name,
-                typeof(TEvent).Name,"");
-            
+                typeof(TEvent).Name, "");
+
             this.RabbitMQConsumer = RabbitMqFactories.CreateAsyncEventingBasicConsumer(this.BusControl.RabbitMQChannel);
             this.RabbitMQConsumer.Received += this.EventConsumer;
         }

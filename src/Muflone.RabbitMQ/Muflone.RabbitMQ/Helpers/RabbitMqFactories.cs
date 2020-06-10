@@ -15,7 +15,8 @@ namespace Muflone.RabbitMQ.Helpers
             {
                 HostName = brokerProperties.HostName,
                 UserName = brokerProperties.Username,
-                Password = brokerProperties.Password
+                Password = brokerProperties.Password,
+                DispatchConsumersAsync = true
             };
         }
 
@@ -24,8 +25,11 @@ namespace Muflone.RabbitMQ.Helpers
 
         internal static IModel CreateChannel(IConnection connection) => connection.CreateModel();
 
-        internal static AsyncEventingBasicConsumer CreateEventingBasicCosumer(IModel channel) =>
+        internal static AsyncEventingBasicConsumer CreateAsyncEventingBasicConsumer(IModel channel) =>
             new AsyncEventingBasicConsumer(channel);
+
+        internal static EventingBasicConsumer CreateEventingBasicConsumer(IModel channel) =>
+            new EventingBasicConsumer(channel);
 
         internal static IModel CreateChannel(BrokerProperties brokerProperties)
         {

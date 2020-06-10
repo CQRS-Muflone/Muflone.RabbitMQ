@@ -25,7 +25,7 @@ namespace Muflone.RabbitMQ
 
         public Task StartAsync(CancellationToken cancellationToken)
         {
-            throw new NotImplementedException();
+            return this.busControl.Start(cancellationToken);
         }
 
         public async Task StopAsync(CancellationToken cancellationToken)

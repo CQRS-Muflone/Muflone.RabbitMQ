@@ -2,11 +2,9 @@
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
-using Microsoft.Extensions.Options;
 using Muflone.Messages.Commands;
 using Muflone.RabbitMQ.Abstracts.Commands;
 using Muflone.RabbitMQ.Helpers;
-using RabbitMQ.Client;
 using RabbitMQ.Client.Events;
 
 namespace Muflone.RabbitMQ.Consumers
@@ -16,9 +14,8 @@ namespace Muflone.RabbitMQ.Consumers
         protected readonly IBusControl BusControl;
         protected readonly ICommandHandler<TCommand> CommandHandler;
         protected readonly AsyncEventingBasicConsumer RabbitMQConsumer;
-        protected IModel RabbitMQChannel;
 
-        private readonly ILogger logger;
+        protected readonly ILogger Logger;
 
         protected CommandConsumerBase(IBusControl busControl,
             ICommandHandler<TCommand> commandHandler,
@@ -26,41 +23,34 @@ namespace Muflone.RabbitMQ.Consumers
         {
             this.BusControl = busControl ?? throw new NullReferenceException($"Value cannot be null. (Parameter '{nameof(busControl)}')");
             this.CommandHandler = commandHandler ?? throw new NullReferenceException($"Value cannot be null. (Parameter '{nameof(commandHandler)}')");
-            this.logger = loggerFactory.CreateLogger(this.GetType());
+            this.Logger = loggerFactory.CreateLogger(this.GetType());
 
-            this.RabbitMQConsumer = RabbitMqFactories.CreateEventingBasicCosumer(this.BusControl.RabbitMQChannel);
+            if (this.BusControl.RabbitMQChannel == null)
+            {
+                var cancellationTokenSource = new CancellationTokenSource();
+                var cancellationToken = cancellationTokenSource.Token;
+                this.BusControl.Start(cancellationToken);
+            }
+
+            this.BusControl.RabbitMQChannel.QueueDeclare(typeof(TCommand).Name, true, false, false, null);
+
+            this.RabbitMQConsumer = RabbitMqFactories.CreateAsyncEventingBasicConsumer(this.BusControl.RabbitMQChannel);
             this.RabbitMQConsumer.Received += this.CommandConsumer;
         }
 
-        protected CommandConsumerBase(ICommandHandler<TCommand> commandHandler,
-            ILoggerFactory loggerFactory, IOptions<BrokerProperties> options)
-        {
-            this.CommandHandler = commandHandler ?? throw new NullReferenceException($"Value cannot be null. (Parameter '{nameof(commandHandler)}')");
-            this.logger = loggerFactory.CreateLogger(this.GetType());
-
-            var connectionFactory = RabbitMqFactories.CreateConnectionFactory(options.Value);
-            var connection = RabbitMqFactories.CreateConnection(connectionFactory);
-            this.RabbitMQChannel = RabbitMqFactories.CreateChannel(connection);
-
-            this.RabbitMQConsumer = RabbitMqFactories.CreateEventingBasicCosumer(this.RabbitMQChannel);
-            this.RabbitMQConsumer.Received += this.CommandConsumer;
-        }
-
-        public abstract Task Consume(CancellationToken cancellationToken = default);
-
-        protected async Task CommandConsumer(object sender, BasicDeliverEventArgs e)
+        private async Task CommandConsumer(object sender, BasicDeliverEventArgs @event)
         {
             try
             {
-                var mufloneCommand = RabbitMqMappers.MapRabbitMqMessageToMuflone<TCommand>(e.Body);
+                var mufloneCommand = RabbitMqMappers.MapRabbitMqMessageToMuflone<TCommand>(@event.Body);
                 await this.CommandHandler.Handle(mufloneCommand);
-                //using (var handler = this.CommandHandler)
-                //    await handler.Handle(mufloneCommand);
             }
             catch (Exception ex)
             {
-                this.logger.LogError(ex, $"Original Message Received: {e.Body}");
+                this.Logger.LogError(ex, $"Original Message Received: {@event.Body}");
             }
         }
+
+        public abstract Task Consume(CancellationToken cancellationToken = default);
     }
 }
