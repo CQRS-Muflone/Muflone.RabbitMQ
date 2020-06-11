@@ -7,7 +7,6 @@ using Microsoft.Extensions.Options;
 using Muflone.Core;
 using Muflone.Messages.Events;
 using Muflone.Persistence;
-using Muflone.RabbitMQ.Consumers;
 using Xunit;
 
 namespace Muflone.RabbitMQ.Test
@@ -22,7 +21,8 @@ namespace Muflone.RabbitMQ.Test
             {
                 HostName = "localhost",
                 Username = "guest",
-                Password = "guest"
+                Password = "guest",
+                DispatchConsumersAsync = true
             });
 
             this.busControl = new BusControl(options);

@@ -1,9 +1,9 @@
 using System;
 using System.Threading;
 using System.Threading.Tasks;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
-using Microsoft.Extensions.Options;
 using Muflone.Core;
 using Muflone.Messages.Commands;
 using Muflone.Persistence;
@@ -11,19 +11,13 @@ using Xunit;
 
 namespace Muflone.RabbitMQ.Test
 {
-    public class CommandConsumerWithRabbitMqTest
+    public class CommandConsumerWithRabbitMqTest : TestBase
     {
         private readonly IBusControl busControl;
 
         public CommandConsumerWithRabbitMqTest()
         {
-            var options = Options.Create(new BrokerProperties
-            {
-                HostName = "localhost",
-                Username = "guest",
-                Password = "guest"
-            });
-            this.busControl = new BusControl(options);
+            this.busControl = this.ServiceProvider.GetService<IBusControl>();
         }
 
         [Fact]
@@ -49,20 +43,10 @@ namespace Muflone.RabbitMQ.Test
         [Fact]
         public async Task Can_Send_Command_With_Servicebus_Muflone_Provider()
         {
-            var options = Options.Create(new BrokerProperties
-            {
-                HostName = "localhost",
-                Username = "guest",
-                Password = "guest"
-            });
-            var serviceBus = new ServiceBus(this.busControl, new NullLoggerFactory(), options);
+            var serviceBus = this.ServiceProvider.GetService<IServiceBus>();
 
             var myCommand = new MyCommand(new MyDomainId(Guid.NewGuid()));
 
-            var cancellationTokenSource = new CancellationTokenSource();
-            var cancellationToken = cancellationTokenSource.Token;
-
-            await serviceBus.StartAsync(cancellationToken);
             await serviceBus.Send(myCommand);
         }
 

@@ -16,7 +16,7 @@ namespace Muflone.RabbitMQ.Helpers
                 HostName = brokerProperties.HostName,
                 UserName = brokerProperties.Username,
                 Password = brokerProperties.Password,
-                DispatchConsumersAsync = true
+                DispatchConsumersAsync = brokerProperties.DispatchConsumersAsync
             };
         }
 
