@@ -2,8 +2,10 @@
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Options;
+using Muflone.Messages;
 using Muflone.Messages.Commands;
 using Muflone.Messages.Events;
+using Muflone.RabbitMQ.Abstracts;
 using Muflone.RabbitMQ.Helpers;
 using RabbitMQ.Client;
 
@@ -40,34 +42,9 @@ namespace Muflone.RabbitMQ
             return Task.CompletedTask;
         }
 
-        public async Task Send<TCommand>(TCommand command, CancellationToken cancellationToken = default) where TCommand : class, ICommand
+        public async Task RegisterConsumer<T>(IMessageConsumer<T> messageConsumer, CancellationToken cancellationToken) where T : IMessage
         {
-            try
-            {
-                var messageBody = RabbitMqMappers.MapMufloneMessageToRabbitMq(command);
-                this.RabbitMQChannel.BasicPublish("", typeof(TCommand).Name, null, messageBody);
-
-                await Task.Yield();
-            }
-            catch (Exception ex)
-            {
-                throw new Exception($"Original Message: {command} - StackTrace: {ex.StackTrace}");
-            }
-        }
-
-        public async Task Publish<TEvent>(TEvent @event, CancellationToken cancellationToken = default) where TEvent : class, IDomainEvent
-        {
-            try
-            {
-                var messageBody = RabbitMqMappers.MapMufloneMessageToRabbitMq(@event);
-                this.RabbitMQChannel.BasicPublish(typeof(TEvent).Name, "", null, messageBody);
-
-                await Task.Yield();
-            }
-            catch (Exception ex)
-            {
-                throw new Exception($"StackTrace: {ex.StackTrace}, Source: {ex.Source}");
-            }
+            await messageConsumer.Consume(cancellationToken);
         }
     }
 }

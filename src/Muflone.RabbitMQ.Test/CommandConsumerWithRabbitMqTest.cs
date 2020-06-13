@@ -59,7 +59,8 @@ namespace Muflone.RabbitMQ.Test
 
             var cancellationTokenSource = new CancellationTokenSource();
             var cancellationToken = cancellationTokenSource.Token;
-            await commandConsumer.Consume(cancellationToken);
+
+            await this.busControl.RegisterConsumer(commandConsumer, cancellationToken);
 
             Thread.Sleep(2000);
             Assert.Equal("I am a command", TestResult.CommandContent);

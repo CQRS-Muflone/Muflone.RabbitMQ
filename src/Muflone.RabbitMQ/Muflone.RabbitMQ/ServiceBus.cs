@@ -6,6 +6,8 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Muflone.Messages;
 using Muflone.Messages.Commands;
+using Muflone.RabbitMQ.Abstracts;
+using Muflone.RabbitMQ.Abstracts.Commands;
 using Muflone.RabbitMQ.Helpers;
 using RabbitMQ.Client;
 
@@ -52,11 +54,6 @@ namespace Muflone.RabbitMQ
             }
         }
 
-        public async Task RegisterHandler<T>(Action<T> handler) where T : IMessage
-        {
-            await Task.Yield();
-        }
-
         public async Task Publish(IMessage @event)
         {
             try
@@ -73,6 +70,11 @@ namespace Muflone.RabbitMQ
                 this.logger.LogError($"StackTrace: {ex.StackTrace}, Source: {ex.Source}");
                 throw new Exception($"StackTrace: {ex.StackTrace}, Source: {ex.Source}");
             }
+        }
+
+        public async Task RegisterHandler<T>(Action<T> consumer) where T : IMessage
+        {
+            await Task.Yield();
         }
     }
 }

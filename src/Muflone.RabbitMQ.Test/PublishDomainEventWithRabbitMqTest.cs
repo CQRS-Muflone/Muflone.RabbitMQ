@@ -77,7 +77,7 @@ namespace Muflone.RabbitMQ.Test
 
             var cancellationTokenSource = new CancellationTokenSource();
             var cancellationToken = cancellationTokenSource.Token;
-            await domainEventConsumer.Consume(cancellationToken);
+            await this.busControl.RegisterConsumer(domainEventConsumer, cancellationToken);
 
             Thread.Sleep(2000);
             Assert.Equal("I am a DomainEvent", TestResult.DomainEventContent);
