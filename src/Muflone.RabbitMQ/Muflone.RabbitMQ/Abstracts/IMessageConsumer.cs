@@ -1,11 +1,6 @@
-﻿using System.Threading;
-using System.Threading.Tasks;
-using Muflone.Messages;
-
-namespace Muflone.RabbitMQ.Abstracts
+﻿namespace Muflone.RabbitMQ.Abstracts
 {
-    public interface IMessageConsumer<in TMessage> where TMessage : IMessage
+    public interface IMessageConsumer
     {
-        Task Consume(CancellationToken cancellationToken = default);
     }
 }

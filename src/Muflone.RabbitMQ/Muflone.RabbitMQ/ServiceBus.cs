@@ -6,8 +6,6 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Muflone.Messages;
 using Muflone.Messages.Commands;
-using Muflone.RabbitMQ.Abstracts;
-using Muflone.RabbitMQ.Abstracts.Commands;
 using Muflone.RabbitMQ.Helpers;
 using RabbitMQ.Client;
 
@@ -35,7 +33,7 @@ namespace Muflone.RabbitMQ
             await this.busControl.Stop(cancellationToken);
         }
 
-        public async Task Send<T>(T command) where T : class, ICommand
+        public Task Send<T>(T command) where T : class, ICommand
         {
             try
             {
@@ -46,6 +44,7 @@ namespace Muflone.RabbitMQ
                 this.busControl.RabbitMQChannel.BasicPublish("", command.GetType().Name, null, messageBody);
 
                 this.logger.LogInformation($"ServiceBus: Sending command {command.GetType()} AggregateId: {command.AggregateId}");
+                return Task.CompletedTask;
             }
             catch (Exception ex)
             {
@@ -54,7 +53,7 @@ namespace Muflone.RabbitMQ
             }
         }
 
-        public async Task Publish(IMessage @event)
+        public Task Publish(IMessage @event)
         {
             try
             {
@@ -63,18 +62,19 @@ namespace Muflone.RabbitMQ
                 var messageBody = RabbitMqMappers.MapMufloneMessageToRabbitMq(@event);
                 this.busControl.RabbitMQChannel.BasicPublish(@event.GetType().Name, "", false, null, messageBody);
 
-                await Task.Yield();
+                return Task.CompletedTask;
             }
             catch (Exception ex)
             {
                 this.logger.LogError($"StackTrace: {ex.StackTrace}, Source: {ex.Source}");
-                throw new Exception($"StackTrace: {ex.StackTrace}, Source: {ex.Source}");
+                throw;
             }
         }
 
-        public async Task RegisterHandler<T>(Action<T> consumer) where T : IMessage
+        [Obsolete("With RabbitMQ, handlers must be registered in the busControl")]
+        public Task RegisterHandler<T>(Action<T> handler) where T : IMessage
         {
-            await Task.Yield();
+            throw new Exception("With RabbitMQ, handlers must be registered in the busControl");
         }
     }
 }

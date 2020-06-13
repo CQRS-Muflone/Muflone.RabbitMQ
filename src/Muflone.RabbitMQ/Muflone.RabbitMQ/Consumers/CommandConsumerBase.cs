@@ -5,11 +5,12 @@ using Microsoft.Extensions.Logging;
 using Muflone.Messages.Commands;
 using Muflone.RabbitMQ.Abstracts.Commands;
 using Muflone.RabbitMQ.Helpers;
+using RabbitMQ.Client;
 using RabbitMQ.Client.Events;
 
 namespace Muflone.RabbitMQ.Consumers
 {
-    public abstract class CommandConsumerBase<TCommand> : ICommandConsumer<TCommand> where TCommand: class, ICommand
+    public sealed class CommandConsumer<TCommand> : ICommandConsumer where TCommand: class, ICommand
     {
         protected readonly IBusControl BusControl;
         protected readonly ICommandHandler<TCommand> CommandHandler;
@@ -17,11 +18,11 @@ namespace Muflone.RabbitMQ.Consumers
 
         protected readonly ILogger Logger;
 
-        protected CommandConsumerBase(IBusControl busControl,
+        protected CommandConsumer(/*IBusControl busControl,*/
             ICommandHandler<TCommand> commandHandler,
             ILoggerFactory loggerFactory)
         {
-            this.BusControl = busControl ?? throw new NullReferenceException($"Value cannot be null. (Parameter '{nameof(busControl)}')");
+            //this.BusControl = busControl ?? throw new NullReferenceException($"Value cannot be null. (Parameter '{nameof(busControl)}')");
             this.CommandHandler = commandHandler ?? throw new NullReferenceException($"Value cannot be null. (Parameter '{nameof(commandHandler)}')");
             this.Logger = loggerFactory.CreateLogger(this.GetType());
 
@@ -36,21 +37,26 @@ namespace Muflone.RabbitMQ.Consumers
 
             this.RabbitMQConsumer = RabbitMqFactories.CreateAsyncEventingBasicConsumer(this.BusControl.RabbitMQChannel);
             this.RabbitMQConsumer.Received += this.CommandConsumer;
+
+            this.BusControl.RabbitMQChannel.BasicConsume(typeof(TCommand).Name, true, this.RabbitMQConsumer);
         }
 
-        private async Task CommandConsumer(object sender, BasicDeliverEventArgs @event)
+        public Task Consume(TCommand message)
         {
-            try
-            {
-                var mufloneCommand = RabbitMqMappers.MapRabbitMqMessageToMuflone<TCommand>(@event.Body);
-                await this.CommandHandler.Handle(mufloneCommand);
-            }
-            catch (Exception ex)
-            {
-                this.Logger.LogError(ex, $"Original Message Received: {@event.Body}");
-            }
+           return  this.CommandHandler.Handle(message);
         }
 
-        public abstract Task Consume(CancellationToken cancellationToken = default);
+        //private async Task CommandConsumer(object sender, BasicDeliverEventArgs @event)
+        //{
+        //    try
+        //    {
+        //        var mufloneCommand = RabbitMqMappers.MapRabbitMqMessageToMuflone<TCommand>(@event.Body);
+        //        await this.CommandHandler.Handle(mufloneCommand);
+        //    }
+        //    catch (Exception ex)
+        //    {
+        //        this.Logger.LogError(ex, $"Original Message Received: {@event.Body}");
+        //    }
+        //}
     }
 }

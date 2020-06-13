@@ -1,8 +1,7 @@
-﻿using Muflone.Messages.Events;
-
-namespace Muflone.RabbitMQ.Abstracts.Events
+﻿namespace Muflone.RabbitMQ.Abstracts.Events
 {
-    public interface IDomainEventConsumer<in TEvent> : IMessageConsumer<TEvent> where TEvent : IDomainEvent
+    // Proxy interface
+    public interface IDomainEventConsumer : IMessageConsumer
     {
     }
 }
