@@ -40,7 +40,9 @@ namespace Muflone.RabbitMQ
                 this.busControl.RabbitMQChannel.QueueDeclare(command.GetType().Name,
                     true, false, false, null);
 
-                await this.busControl.Send(command, new CancellationToken(false));
+                var messageBody = RabbitMqMappers.MapMufloneMessageToRabbitMq(command);
+                this.busControl.RabbitMQChannel.BasicPublish("", command.GetType().Name, null, messageBody);
+
                 this.logger.LogInformation($"ServiceBus: Sending command {command.GetType()} AggregateId: {command.AggregateId}");
             }
             catch (Exception ex)
