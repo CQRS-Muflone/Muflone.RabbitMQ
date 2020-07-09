@@ -21,26 +21,6 @@ namespace Muflone.RabbitMQ.Test
         }
 
         [Fact]
-        public void Cannot_Create_CommandConsumer_Without_BusControl()
-        {
-            var exception =
-                Assert.ThrowsAny<Exception>(() =>
-                    new CommandConsumer<MyCommand>(null, null, new NullLoggerFactory()));
-
-            Assert.Equal("Value cannot be null. (Parameter 'busControl')", exception.Message);
-        }
-
-        [Fact]
-        public void Cannot_Create_CommandConsumer_Without_CommandHandler()
-        {
-            var exception =
-                Assert.ThrowsAny<Exception>(() =>
-                    new CommandConsumer<MyCommand>(this.busControl, null, new NullLoggerFactory()));
-
-            Assert.Equal("Value cannot be null. (Parameter 'commandHandler')", exception.Message);
-        }
-
-        [Fact]
         public async Task Can_Send_Command_With_Servicebus_Muflone_Provider()
         {
             var serviceBus = this.ServiceProvider.GetService<IServiceBus>();
@@ -54,8 +34,8 @@ namespace Muflone.RabbitMQ.Test
         public async Task Can_Receive_Command_With_RabbitMQ_Muflone_Provider()
         {
             var myCommandHandler = new MyCommandCommandHandler(new InMemoryRepository(), new NullLoggerFactory());
-            var commandConsumer =
-                new CommandConsumer<MyCommand>(this.busControl, myCommandHandler, new NullLoggerFactory());
+            //var commandConsumer =
+            //    new CommandConsumer<MyCommand>(this.busControl, myCommandHandler, new NullLoggerFactory());
 
             //var cancellationTokenSource = new CancellationTokenSource();
             //var cancellationToken = cancellationTokenSource.Token;

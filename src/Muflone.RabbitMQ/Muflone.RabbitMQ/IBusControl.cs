@@ -1,8 +1,8 @@
-﻿using System;
-using System.Threading;
+﻿using System.Threading;
 using System.Threading.Tasks;
 using Muflone.Messages;
-using Muflone.RabbitMQ.Abstracts;
+using Muflone.Messages.Commands;
+using Muflone.Messages.Events;
 using RabbitMQ.Client;
 
 namespace Muflone.RabbitMQ
@@ -14,6 +14,7 @@ namespace Muflone.RabbitMQ
         Task Start(CancellationToken cancellationToken = default);
         Task Stop(CancellationToken cancellationToken = default);
 
-        Task RegisterConsumer<T>(Action<T> handler, CancellationToken cancellationToken) where T : IMessage;
+
+        Task RegisterMessageConsumers(CancellationToken cancellationToken);
     }
 }

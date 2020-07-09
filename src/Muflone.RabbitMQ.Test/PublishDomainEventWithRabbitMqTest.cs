@@ -25,27 +25,7 @@ namespace Muflone.RabbitMQ.Test
                 DispatchConsumersAsync = true
             });
 
-            this.busControl = new BusControl(options);
-        }
-
-        [Fact]
-        public void Cannot_Create_DomainEventConsumer_Without_BusControl()
-        {
-            var exception =
-                Assert.ThrowsAny<Exception>(() =>
-                    new DomainEventConsumer<MyEvent>(null, null, new NullLoggerFactory()));
-
-            Assert.Equal("Value cannot be null. (Parameter 'busControl')", exception.Message);
-        }
-
-        [Fact]
-        public void Cannot_Create_DomainEventConsumer_Without_EventHandler()
-        {
-            var exception =
-                Assert.ThrowsAny<Exception>(() =>
-                    new DomainEventConsumer<MyEvent>(this.busControl, null, new NullLoggerFactory()));
-
-            Assert.Equal("Value cannot be null. (Parameter 'eventHandler')", exception.Message);
+            //this.busControl = new BusControl(options, new NullLoggerFactory());
         }
 
         [Fact]
@@ -57,7 +37,7 @@ namespace Muflone.RabbitMQ.Test
                 Username = "guest",
                 Password = "guest"
             });
-            var serviceBus = new ServiceBus(this.busControl, new NullLoggerFactory(), options);
+            var serviceBus = new ServiceBus(this.busControl, new NullLoggerFactory());
 
             var myEvent = new MyEvent(new MyDomainId(Guid.NewGuid()));
 
@@ -72,12 +52,12 @@ namespace Muflone.RabbitMQ.Test
         public async Task Can_Receive_DomainEvent_With_RabbitMQ_Muflone_Provider()
         {
             var myEventHandler = new MyEventHandler(new InMemoryPersister(), new NullLoggerFactory());
-            var domainEventConsumer =
-                new DomainEventConsumer<MyEvent>(this.busControl, myEventHandler, new NullLoggerFactory());
 
             var cancellationTokenSource = new CancellationTokenSource();
             var cancellationToken = cancellationTokenSource.Token;
-            await this.busControl.RegisterConsumer(domainEventConsumer, cancellationToken);
+            //await this.busControl.RegisterConsumer(domainEventConsumer, cancellationToken);
+
+            //this.busControl.RegisterHandler(typeof(MyEvent), myEventHandler, cancellationToken);
 
             Thread.Sleep(2000);
             Assert.Equal("I am a DomainEvent", TestResult.DomainEventContent);

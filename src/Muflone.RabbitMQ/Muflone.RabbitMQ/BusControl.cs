@@ -1,4 +1,6 @@
 ﻿using System;
+using System.Linq;
+using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
@@ -7,6 +9,7 @@ using Muflone.Messages;
 using Muflone.Messages.Commands;
 using Muflone.RabbitMQ.Abstracts;
 using Muflone.RabbitMQ.Helpers;
+using Newtonsoft.Json;
 using RabbitMQ.Client;
 using RabbitMQ.Client.Events;
 
@@ -19,13 +22,26 @@ namespace Muflone.RabbitMQ
         private AsyncEventingBasicConsumer rabbitMQConsumer;
         private readonly ILogger logger;
 
+        private readonly ISubscriberRegistry subscriberRegistry;
+        private readonly IMessageHandlerFactory messageHandlerFactory;
+
         public IModel RabbitMQChannel { get; private set; }
 
-        public BusControl(IOptions<BrokerProperties> options,
+        public BusControl(ISubscriberRegistry subscriberRegistry,
+            IMessageHandlerFactory messageHandlerFactory,
+            IOptions<BrokerProperties> options,
             ILoggerFactory loggerFactory)
         {
+            if (subscriberRegistry == null)
+                throw new NullReferenceException(nameof(subscriberRegistry));
+
+            if (subscriberRegistry.Observers == null || !subscriberRegistry.Observers.Any())
+                throw new Exception("No handlers found! At least one handler for message is required!");
+
+            this.subscriberRegistry = subscriberRegistry;
+            this.messageHandlerFactory = messageHandlerFactory;
             this.brokerProperties = options.Value;
-            this.logger = loggerFactory.CreateLogger(this.GetType());
+            this.logger = loggerFactory.CreateLogger( GetType());
         }
 
         public Task Start(CancellationToken cancellationToken = default)
@@ -33,10 +49,10 @@ namespace Muflone.RabbitMQ
             if (cancellationToken.IsCancellationRequested)
                 cancellationToken.ThrowIfCancellationRequested();
 
-            var connectionFactory = RabbitMqFactories.CreateConnectionFactory(this.brokerProperties);
+            var connectionFactory = RabbitMqFactories.CreateConnectionFactory(brokerProperties);
             var connection = RabbitMqFactories.CreateConnection(connectionFactory);
 
-            this.RabbitMQChannel = RabbitMqFactories.CreateChannel(connection);
+            RabbitMQChannel = RabbitMqFactories.CreateChannel(connection);
 
             return Task.CompletedTask;
         }
@@ -46,71 +62,85 @@ namespace Muflone.RabbitMQ
             if (cancellationToken.IsCancellationRequested)
                 cancellationToken.ThrowIfCancellationRequested();
 
-            if (!this.RabbitMQChannel.IsClosed)
-                this.RabbitMQChannel.Close();
+            if (!RabbitMQChannel.IsClosed)
+                RabbitMQChannel.Close();
 
-            this.RabbitMQChannel.Dispose();
+            RabbitMQChannel.Dispose();
 
             return Task.CompletedTask;
         }
 
-        IConcurrencyDictionary<Type, ICommandHandler<T>>
-            //Andare a vedere ServibUsi inmemory di ale
+        public Task RegisterMessageConsumers( CancellationToken cancellationToken = default(CancellationToken))
+        {
+            foreach (var observer in this.subscriberRegistry.Observers)
+            {
+                if (cancellationToken.IsCancellationRequested)
+                    cancellationToken.ThrowIfCancellationRequested();
 
-            private readonly Dictionary<Type, List<Action<Message>>> routes = new Dictionary<Type, List<Action<Message>>>();
+                RabbitMQChannel.QueueDeclare(observer.Key.Name, true, false, false, null);
 
-            public void RegisterHandler<T>(Action<T> handler) where T : Message
+                rabbitMQConsumer = RabbitMqFactories.CreateAsyncEventingBasicConsumer(RabbitMQChannel);
+                rabbitMQConsumer.Received += this.MessageConsumer;
+
+                RabbitMQChannel.BasicConsume(observer.Key.Name, true, rabbitMQConsumer);
+            }
+
+            return Task.CompletedTask;
+        }
+
+        public Task MessageConsumer(object sender, BasicDeliverEventArgs @event)
+        {
+            var messageBody = Encoding.UTF8.GetString(@event.Body.ToArray());
+
+            foreach (var observer in subscriberRegistry.Observers)
             {
                 try
                 {
-                    if (!routes.TryGetValue(typeof(T), out var handlers))
+                    // Deserialize message from RMQ to Muflone
+                    var mufloneMessage = (IMessage)JsonConvert.DeserializeObject(messageBody, observer.Key);
+                    if (mufloneMessage == null)
+                        continue;
+
+                    logger.LogDebug($"BusControl-Dispatch Event {mufloneMessage.GetType()}");
+
+                    foreach (var handlerType in observer.Value)
                     {
-                        handlers = new List<Action<Message>>();
-                        routes.Add(typeof(T), handlers);
+                        var memberInfo = mufloneMessage.GetType().BaseType;
+                        if (memberInfo != null && memberInfo.Name.Equals("Command"))
+                        {
+                            var messageHandler = this.messageHandlerFactory.GetMessageHandler(handlerType);
+                            
+                        }
+                        //((ICommandHandler<T>)handlerType).Handle((T)mufloneMessage);
+
+
+                            //var memberInfo = mufloneMessage.GetType().BaseType;
+                            //if (memberInfo != null && memberInfo.Name.Equals("Command"))
+                            //{
+                            //    //var commandHandler = CreateCommandHandler<>(handlerType);
+                            //}
                     }
-                    handlers.Add(x => handler((T)x));
                 }
                 catch (Exception ex)
                 {
-                    log.Error(m => m($"RegisterHandler: {ex.Message}"), ex);
-                    throw;
+                    logger.LogError(
+                        $"RMQ message {messageBody} - Error: {ex.Message} - StackTrace: {ex.StackTrace} - Source: {ex.Source}");
+                    //non vogliamo che si blocchi il dispatch
+                    //throw;
                 }
             }
 
-        public async Task RegisterConsumer<T>(Action<T> handler, CancellationToken cancellationToken) where T : IMessage
-        {
-            if (cancellationToken.IsCancellationRequested)
-                cancellationToken.ThrowIfCancellationRequested();
-
-
-            //Lista dei commamndHandler
-
-            //Verifico non esista già la coda, bla bla
-            this.RabbitMQChannel.QueueDeclare(typeof(TCommand).Name, true, false, false, null);
-
-            this.rabbitMQConsumer = RabbitMqFactories.CreateAsyncEventingBasicConsumer(this.RabbitMQChannel);
-            this.rabbitMQConsumer.Received += this.CommandConsumer;
-
-            this.RabbitMQChannel.BasicConsume(typeof(TCommand).Name, true, this.rabbitMQConsumer);
-        }
-        private async Task CommandConsumer(object sender, BasicDeliverEventArgs @event)
-        {
-            try
-            {
-                var mufloneCommand = RabbitMqMappers.MapRabbitMqMessageToMuflone<TCommand>(@event.Body);
-
-                //Chiamo l'ahndler corretto dalla mia lista, basata sul tipo
-
-                //A questo punto, forse, non ha più senso fare un decoratro di Muflone.Command.CommandHandler, am chiamarlo direttamente
-                await this.CommandHandler.Handle(mufloneCommand);
-            }
-            catch (Exception ex)
-            {
-                this.logger.LogError(ex, $"Original Message Received: {@event.Body}");
-                throw;
-            }
+            return Task.CompletedTask;
         }
 
+        private IMessageHandler<T> CreateHandler<T>(Type commandType) where T : IMessage
+        {
+            return (IMessageHandler<T>) Activator.CreateInstance(commandType);
+        }
 
+        private ICommandHandler<T> CreateCommandHandler<T>(Type handlerType) where T : ICommand
+        {
+            return (ICommandHandler<T>) Activator.CreateInstance(handlerType);
+        }
     }
 }

@@ -20,4 +20,8 @@
     </PackageReference>
   </ItemGroup>
 
+  <ItemGroup>
+    <ProjectReference Include="..\Muflone.RabbitMQ\Muflone.RabbitMQ\Muflone.RabbitMQ.csproj" />
+  </ItemGroup>
+
 </Project>

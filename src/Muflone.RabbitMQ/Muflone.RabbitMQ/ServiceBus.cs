@@ -3,7 +3,6 @@ using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
-using Microsoft.Extensions.Options;
 using Muflone.Messages;
 using Muflone.Messages.Commands;
 using Muflone.RabbitMQ.Helpers;
@@ -17,7 +16,7 @@ namespace Muflone.RabbitMQ
         private readonly ILogger logger;
 
         public ServiceBus(IBusControl busControl,
-            ILoggerFactory loggerFactory, IOptions<BrokerProperties> options)
+            ILoggerFactory loggerFactory)
         {
             this.busControl = busControl;
             this.logger = loggerFactory.CreateLogger(this.GetType());
@@ -37,9 +36,6 @@ namespace Muflone.RabbitMQ
         {
             try
             {
-                this.busControl.RabbitMQChannel.QueueDeclare(command.GetType().Name,
-                    true, false, false, null);
-
                 var messageBody = RabbitMqMappers.MapMufloneMessageToRabbitMq(command);
                 this.busControl.RabbitMQChannel.BasicPublish("", command.GetType().Name, null, messageBody);
 

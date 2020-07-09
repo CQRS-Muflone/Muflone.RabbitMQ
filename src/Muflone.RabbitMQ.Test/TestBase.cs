@@ -20,7 +20,6 @@ namespace Muflone.RabbitMQ.Test
                 DispatchConsumersAsync = true
             });
 
-            services.AddMufloneRabbitMQ(options);
             services.AddLogging();
 
             this.ServiceProvider = services.BuildServiceProvider();
