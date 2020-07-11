@@ -1,11 +1,15 @@
 using System;
+using System.Linq;
+using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Muflone.Core;
+using Muflone.Messages;
 using Muflone.Messages.Commands;
 using Muflone.Persistence;
+using Muflone.RabbitMQ.Abstracts;
 using Xunit;
 
 namespace Muflone.RabbitMQ.IntegrationTests
@@ -53,6 +57,8 @@ namespace Muflone.RabbitMQ.IntegrationTests
 
             var myCommand = new MyCommand(new MyDomainId(Guid.NewGuid()));
             await serviceBus.Send(myCommand);
+
+            Thread.Sleep(5000);
         }
 
         public class MyDomainId : DomainId
@@ -88,6 +94,22 @@ namespace Muflone.RabbitMQ.IntegrationTests
         public static class TestResult
         {
             public static string CommandContent;
+        }
+
+        public class MessageHandlerFactory : IMessageHandlerFactory
+        {
+            private readonly IServiceProvider _serviceProvider;
+
+            public MessageHandlerFactory(IServiceProvider serviceProvider)
+            {
+                this._serviceProvider = serviceProvider;
+            }
+
+            public IMessageHandler GetMessageHandler(Type handlerType)
+            {
+                var handlers = this._serviceProvider.GetServices(handlerType);
+                return this._serviceProvider.GetService<IMessageHandler<MyCommand>>();
+            }
         }
     }
 }

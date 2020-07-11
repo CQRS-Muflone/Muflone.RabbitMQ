@@ -3,11 +3,13 @@ using System.Linq;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Muflone.Messages;
 using Muflone.Messages.Commands;
 using Muflone.RabbitMQ.Abstracts;
+using Muflone.RabbitMQ.Factories;
 using Muflone.RabbitMQ.Helpers;
 using Newtonsoft.Json;
 using RabbitMQ.Client;
@@ -23,12 +25,12 @@ namespace Muflone.RabbitMQ
         private readonly ILogger logger;
 
         private readonly ISubscriberRegistry subscriberRegistry;
-        private readonly IMessageHandlerFactory messageHandlerFactory;
+        private readonly IServiceProvider serviceProvider;
 
         public IModel RabbitMQChannel { get; private set; }
 
         public BusControl(ISubscriberRegistry subscriberRegistry,
-            IMessageHandlerFactory messageHandlerFactory,
+            IServiceProvider serviceProvider,
             IOptions<BrokerProperties> options,
             ILoggerFactory loggerFactory)
         {
@@ -39,9 +41,9 @@ namespace Muflone.RabbitMQ
                 throw new Exception("No handlers found! At least one handler for message is required!");
 
             this.subscriberRegistry = subscriberRegistry;
-            this.messageHandlerFactory = messageHandlerFactory;
+            this.serviceProvider = serviceProvider;
             this.brokerProperties = options.Value;
-            this.logger = loggerFactory.CreateLogger( GetType());
+            this.logger = loggerFactory.CreateLogger(GetType());
         }
 
         public Task Start(CancellationToken cancellationToken = default)
@@ -70,7 +72,7 @@ namespace Muflone.RabbitMQ
             return Task.CompletedTask;
         }
 
-        public Task RegisterMessageConsumers( CancellationToken cancellationToken = default(CancellationToken))
+        public Task RegisterMessageConsumers(CancellationToken cancellationToken = default(CancellationToken))
         {
             foreach (var observer in this.subscriberRegistry.Observers)
             {
@@ -92,33 +94,48 @@ namespace Muflone.RabbitMQ
         {
             var messageBody = Encoding.UTF8.GetString(@event.Body.ToArray());
 
+            var commandHandlerFactory = new CommandHandlerFactory(this.serviceProvider);
+
             foreach (var observer in subscriberRegistry.Observers)
             {
                 try
                 {
-                    // Deserialize message from RMQ to Muflone
+                    // Deserialize message from RMQ to Muflone generic IMessage
+                    // We need this to discover BaseType of the current message
                     var mufloneMessage = (IMessage)JsonConvert.DeserializeObject(messageBody, observer.Key);
                     if (mufloneMessage == null)
                         continue;
 
                     logger.LogDebug($"BusControl-Dispatch Event {mufloneMessage.GetType()}");
 
-                    foreach (var handlerType in observer.Value)
+                    var handler =
+                        this.subscriberRegistry.Handlers.FirstOrDefault(h => h.Key.GetType().Name == observer.Key.Name);
+
+                    var memberInfo = mufloneMessage.GetType().BaseType;
+                    var handlers = serviceProvider.GetServices(observer.Value.First());
+
+                    if (memberInfo != null && memberInfo.Name.Equals("Command"))
                     {
-                        var memberInfo = mufloneMessage.GetType().BaseType;
-                        if (memberInfo != null && memberInfo.Name.Equals("Command"))
-                        {
-                            var messageHandler = this.messageHandlerFactory.GetMessageHandler(handlerType);
-                            
-                        }
-                        //((ICommandHandler<T>)handlerType).Handle((T)mufloneMessage);
+                        var command = (Command)JsonConvert.DeserializeObject(messageBody, observer.Key);
+                        var commandHandlerType = typeof(ICommandHandler<>);
 
+                        var specificCommandHandlerType = commandHandlerType.MakeGenericType(observer.Key);
+                        var v2 = specificCommandHandlerType.GetProperty("Value")?.GetValue(observer.Key, null);
 
-                            //var memberInfo = mufloneMessage.GetType().BaseType;
-                            //if (memberInfo != null && memberInfo.Name.Equals("Command"))
-                            //{
-                            //    //var commandHandler = CreateCommandHandler<>(handlerType);
-                            //}
+                        //foreach (var handler in handlers)
+                        //{
+                        //    //var customCommandHandlerType = commandHandlerType.MakeGenericType(handler.GetType());
+
+                        //    //handler.Handle(command);
+                        //}
+                    }
+
+                    if (memberInfo != null && memberInfo.Name.Equals("DomainEvent"))
+                    {
+                    }
+
+                    if (memberInfo != null && memberInfo.Name.Equals("IntegrationEvent"))
+                    {
                     }
                 }
                 catch (Exception ex)

@@ -17,7 +17,7 @@ namespace Muflone.RabbitMQ
                 var cancellationTokenSource = new CancellationTokenSource();
                 var cancellationToken = cancellationTokenSource.Token;
 
-                var busControl = new BusControl(subscriberRegistry, options, new NullLoggerFactory());
+                var busControl = new BusControl(subscriberRegistry, provider, options, new NullLoggerFactory());
                 busControl.Start(cancellationToken).GetAwaiter().GetResult();
                 busControl.RegisterMessageConsumers(cancellationToken).GetAwaiter().GetResult();
 
