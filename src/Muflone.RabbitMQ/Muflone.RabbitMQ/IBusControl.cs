@@ -14,7 +14,11 @@ namespace Muflone.RabbitMQ
         Task Start(CancellationToken cancellationToken = default);
         Task Stop(CancellationToken cancellationToken = default);
 
+        Task RegisterCommandConsumer<T>(CancellationToken cancellationToken = default)
+            where T : class, ICommand;
+        Task RegisterEventConsumer<T>(CancellationToken cancellationToken = default)
+            where T : class, IEvent;
 
-        Task RegisterMessageConsumers(CancellationToken cancellationToken);
+        Task RegisterConsumer<T>(T message, CancellationToken cancellationToken = default) where T : class, IMessage;
     }
 }

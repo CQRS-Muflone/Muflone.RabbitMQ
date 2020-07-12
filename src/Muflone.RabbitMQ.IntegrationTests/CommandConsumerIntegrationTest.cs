@@ -1,5 +1,4 @@
 using System;
-using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.Extensions.DependencyInjection;
@@ -37,6 +36,7 @@ namespace Muflone.RabbitMQ.IntegrationTests
 
             var subscriberRegistry = new SubscriberRegistry();
             subscriberRegistry.Register<MyCommand, MyCommandCommandHandler>();
+
             services.AddMufloneRabbitMQ(options, subscriberRegistry);
 
             this._serviceProvider = services.BuildServiceProvider();
@@ -107,7 +107,6 @@ namespace Muflone.RabbitMQ.IntegrationTests
 
             public IMessageHandler GetMessageHandler(Type handlerType)
             {
-                var handlers = this._serviceProvider.GetServices(handlerType);
                 return this._serviceProvider.GetService<IMessageHandler<MyCommand>>();
             }
         }

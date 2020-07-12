@@ -1,8 +1,10 @@
-﻿using System.Threading;
+﻿using System;
+using System.Threading;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
+using Muflone.Messages;
 using Muflone.RabbitMQ.Abstracts;
 
 namespace Muflone.RabbitMQ
@@ -19,7 +21,11 @@ namespace Muflone.RabbitMQ
 
                 var busControl = new BusControl(subscriberRegistry, provider, options, new NullLoggerFactory());
                 busControl.Start(cancellationToken).GetAwaiter().GetResult();
-                busControl.RegisterMessageConsumers(cancellationToken).GetAwaiter().GetResult();
+
+                foreach (var message in subscriberRegistry.Messages)
+                {
+                    busControl.RegisterConsumer(message, cancellationToken);
+                }
 
                 return busControl;
             });

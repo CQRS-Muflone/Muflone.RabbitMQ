@@ -9,7 +9,8 @@ namespace Muflone.RabbitMQ
     public class SubscriberRegistry : ISubscriberRegistry, IEnumerable<KeyValuePair<Type, List<Type>>>
     {
         private readonly Dictionary<Type, List<Type>> observers = new Dictionary<Type, List<Type>>();
-        private readonly Dictionary<IMessage, List<Type>> handlers = new Dictionary<IMessage, List<Type>>();
+
+        private List<IMessage> messages = new List<IMessage>();
 
         public void Register<TMessage, TImplementation>() where TMessage : class, IMessage
             where TImplementation : class, IMessageHandler<TMessage>
@@ -21,18 +22,13 @@ namespace Muflone.RabbitMQ
                 observers[typeof(TMessage)].Add(typeof(TImplementation));
         }
 
-        public void RegisterHandlers<TImplementation>(IMessage message)
-            where TImplementation : class, IMessageHandler<IMessage>
+        public void RegisterMessage<T>(T message) where T : class, IMessage
         {
-            var handler = this.handlers.ContainsKey(message);
-            if (!handler)
-                handlers.Add(message, new List<Type>{typeof(TImplementation)});
-            else
-                handlers[message].Add(typeof(TImplementation));
+            this.messages.Add(message);
         }
 
         Dictionary<Type, List<Type>> ISubscriberRegistry.Observers => observers;
-        public Dictionary<IMessage, List<Type>> Handlers => this.handlers;
+        public IList<IMessage> Messages => this.messages;
 
         public IEnumerable<Type> Get<TMessage>() where TMessage : class, IMessage
         {

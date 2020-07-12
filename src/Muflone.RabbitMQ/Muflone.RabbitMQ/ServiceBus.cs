@@ -5,6 +5,7 @@ using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Muflone.Messages;
 using Muflone.Messages.Commands;
+using Muflone.Messages.Events;
 using Muflone.RabbitMQ.Helpers;
 using RabbitMQ.Client;
 
@@ -36,6 +37,9 @@ namespace Muflone.RabbitMQ
         {
             try
             {
+                // Register Consumer
+                busControl.RegisterCommandConsumer<T>();
+
                 var messageBody = RabbitMqMappers.MapMufloneMessageToRabbitMq(command);
                 this.busControl.RabbitMQChannel.BasicPublish("", command.GetType().Name, null, messageBody);
 
@@ -49,10 +53,13 @@ namespace Muflone.RabbitMQ
             }
         }
 
-        public Task Publish(IMessage @event)
+        public Task Publish<T>(T @event) where T : class, IEvent
         {
             try
             {
+                // Register Consumer
+                this.busControl.RegisterEventConsumer<T>();
+
                 this.busControl.RabbitMQChannel.ExchangeDeclare(@event.GetType().Name, ExchangeType.Fanout);
 
                 var messageBody = RabbitMqMappers.MapMufloneMessageToRabbitMq(@event);
@@ -65,6 +72,11 @@ namespace Muflone.RabbitMQ
                 this.logger.LogError($"StackTrace: {ex.StackTrace}, Source: {ex.Source}");
                 throw;
             }
+        }
+
+        public Task Publish(IMessage @event)
+        {
+            throw new NotImplementedException();
         }
 
         [Obsolete("With RabbitMQ, handlers must be registered in the busControl")]

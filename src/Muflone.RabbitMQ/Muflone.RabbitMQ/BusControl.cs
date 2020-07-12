@@ -1,17 +1,16 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.Linq;
-using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
-using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Muflone.Messages;
 using Muflone.Messages.Commands;
+using Muflone.Messages.Events;
 using Muflone.RabbitMQ.Abstracts;
 using Muflone.RabbitMQ.Factories;
 using Muflone.RabbitMQ.Helpers;
-using Newtonsoft.Json;
 using RabbitMQ.Client;
 using RabbitMQ.Client.Events;
 
@@ -26,6 +25,10 @@ namespace Muflone.RabbitMQ
 
         private readonly ISubscriberRegistry subscriberRegistry;
         private readonly IServiceProvider serviceProvider;
+
+        private readonly MessageHandlerFactory messageHandlerFactory;
+        private readonly CommandHandlerFactory commandHandlerFactory;
+        private readonly DomainEventHandlerFactory domainEventHandlerFactory;
 
         public IModel RabbitMQChannel { get; private set; }
 
@@ -43,6 +46,11 @@ namespace Muflone.RabbitMQ
             this.subscriberRegistry = subscriberRegistry;
             this.serviceProvider = serviceProvider;
             this.brokerProperties = options.Value;
+
+            messageHandlerFactory = new MessageHandlerFactory(serviceProvider);
+            commandHandlerFactory = new CommandHandlerFactory(serviceProvider);
+            domainEventHandlerFactory = new DomainEventHandlerFactory(serviceProvider);
+
             this.logger = loggerFactory.CreateLogger(GetType());
         }
 
@@ -72,92 +80,151 @@ namespace Muflone.RabbitMQ
             return Task.CompletedTask;
         }
 
-        public Task RegisterMessageConsumers(CancellationToken cancellationToken = default(CancellationToken))
+        public Task RegisterConsumer<T>(T message, CancellationToken cancellationToken = default) where T : class, IMessage
         {
-            foreach (var observer in this.subscriberRegistry.Observers)
+            if (cancellationToken.IsCancellationRequested)
+                cancellationToken.ThrowIfCancellationRequested();
+
+            RabbitMQChannel.QueueDeclare(typeof(T).Name, true, false, false, null);
+
+            rabbitMQConsumer = RabbitMqFactories.CreateAsyncEventingBasicConsumer(RabbitMQChannel);
+            rabbitMQConsumer.Received += MessageConsumer<T>;
+
+            RabbitMQChannel.BasicConsume(typeof(T).Name, true, rabbitMQConsumer);
+
+            return Task.CompletedTask;
+        }
+
+        private Task MessageConsumer<T>(object sender, BasicDeliverEventArgs @event) where T : class, IMessage
+        {
+            try
             {
-                if (cancellationToken.IsCancellationRequested)
-                    cancellationToken.ThrowIfCancellationRequested();
+                var message = RabbitMqMappers.MapRabbitMqMessageToMuflone<T>(@event.Body.ToArray());
 
-                RabbitMQChannel.QueueDeclare(observer.Key.Name, true, false, false, null);
+                var messageHandlers = GetMessageHandlers<T>();
 
-                rabbitMQConsumer = RabbitMqFactories.CreateAsyncEventingBasicConsumer(RabbitMQChannel);
-                rabbitMQConsumer.Received += this.MessageConsumer;
-
-                RabbitMQChannel.BasicConsume(observer.Key.Name, true, rabbitMQConsumer);
+                foreach (var handler in messageHandlers)
+                {
+                    handler.Handle(message);
+                }
+            }
+            catch (Exception ex)
+            {
+                logger.LogError(
+                    $"Message {typeof(T).Name} - Error: {ex.Message} - StackTrace: {ex.StackTrace} - Source: {ex.Source}");
+                //non vogliamo che si blocchi il dispatch
+                //throw;
             }
 
             return Task.CompletedTask;
         }
 
-        public Task MessageConsumer(object sender, BasicDeliverEventArgs @event)
+        public Task RegisterCommandConsumer<T>(CancellationToken cancellationToken = default)
+            where T : class, ICommand
         {
-            var messageBody = Encoding.UTF8.GetString(@event.Body.ToArray());
+            if (cancellationToken.IsCancellationRequested)
+                cancellationToken.ThrowIfCancellationRequested();
 
-            var commandHandlerFactory = new CommandHandlerFactory(this.serviceProvider);
+            RabbitMQChannel.QueueDeclare(typeof(T).Name, true, false, false, null);
 
-            foreach (var observer in subscriberRegistry.Observers)
+            rabbitMQConsumer = RabbitMqFactories.CreateAsyncEventingBasicConsumer(RabbitMQChannel);
+            rabbitMQConsumer.Received += this.CommandConsumer<T>;
+
+            RabbitMQChannel.BasicConsume(typeof(T).Name, true, rabbitMQConsumer);
+
+            return Task.CompletedTask;
+        }
+
+        private Task CommandConsumer<T>(object sender, BasicDeliverEventArgs @event) where T : class, ICommand
+        {
+            try
             {
-                try
+                var message = RabbitMqMappers.MapRabbitMqMessageToMuflone<T>(@event.Body.ToArray());
+
+                var commandHandlers = GetCommandHandlers<T>();
+
+                foreach (var handler in commandHandlers)
                 {
-                    // Deserialize message from RMQ to Muflone generic IMessage
-                    // We need this to discover BaseType of the current message
-                    var mufloneMessage = (IMessage)JsonConvert.DeserializeObject(messageBody, observer.Key);
-                    if (mufloneMessage == null)
-                        continue;
-
-                    logger.LogDebug($"BusControl-Dispatch Event {mufloneMessage.GetType()}");
-
-                    var handler =
-                        this.subscriberRegistry.Handlers.FirstOrDefault(h => h.Key.GetType().Name == observer.Key.Name);
-
-                    var memberInfo = mufloneMessage.GetType().BaseType;
-                    var handlers = serviceProvider.GetServices(observer.Value.First());
-
-                    if (memberInfo != null && memberInfo.Name.Equals("Command"))
-                    {
-                        var command = (Command)JsonConvert.DeserializeObject(messageBody, observer.Key);
-                        var commandHandlerType = typeof(ICommandHandler<>);
-
-                        var specificCommandHandlerType = commandHandlerType.MakeGenericType(observer.Key);
-                        var v2 = specificCommandHandlerType.GetProperty("Value")?.GetValue(observer.Key, null);
-
-                        //foreach (var handler in handlers)
-                        //{
-                        //    //var customCommandHandlerType = commandHandlerType.MakeGenericType(handler.GetType());
-
-                        //    //handler.Handle(command);
-                        //}
-                    }
-
-                    if (memberInfo != null && memberInfo.Name.Equals("DomainEvent"))
-                    {
-                    }
-
-                    if (memberInfo != null && memberInfo.Name.Equals("IntegrationEvent"))
-                    {
-                    }
+                    handler.Handle(message);
                 }
-                catch (Exception ex)
-                {
-                    logger.LogError(
-                        $"RMQ message {messageBody} - Error: {ex.Message} - StackTrace: {ex.StackTrace} - Source: {ex.Source}");
-                    //non vogliamo che si blocchi il dispatch
-                    //throw;
-                }
+            }
+            catch (Exception ex)
+            {
+                logger.LogError(
+                    $"Message {typeof(T).Name} - Error: {ex.Message} - StackTrace: {ex.StackTrace} - Source: {ex.Source}");
+                //non vogliamo che si blocchi il dispatch
+                //throw;
             }
 
             return Task.CompletedTask;
         }
 
-        private IMessageHandler<T> CreateHandler<T>(Type commandType) where T : IMessage
+        public Task RegisterEventConsumer<T>(CancellationToken cancellationToken = default(CancellationToken)) where T : class, IEvent
         {
-            return (IMessageHandler<T>) Activator.CreateInstance(commandType);
+            if (cancellationToken.IsCancellationRequested)
+                cancellationToken.ThrowIfCancellationRequested();
+
+            RabbitMQChannel.QueueDeclare(typeof(T).Name, true, false, false, null);
+
+            rabbitMQConsumer = RabbitMqFactories.CreateAsyncEventingBasicConsumer(RabbitMQChannel);
+            rabbitMQConsumer.Received += EventConsumer<T>;
+
+            RabbitMQChannel.BasicConsume(typeof(T).Name, true, rabbitMQConsumer);
+
+            return Task.CompletedTask;
         }
 
-        private ICommandHandler<T> CreateCommandHandler<T>(Type handlerType) where T : ICommand
+        private Task EventConsumer<T>(object sender, BasicDeliverEventArgs @event) where T : class, IEvent
         {
-            return (ICommandHandler<T>) Activator.CreateInstance(handlerType);
+            try
+            {
+                var message = RabbitMqMappers.MapRabbitMqMessageToMuflone<T>(@event.Body.ToArray());
+
+                if (typeof(T) is IDomainEvent)
+                {
+                    //var domainEventHandler = GetDomainEventHandlers<T>();
+                }
+
+                //foreach (var handler in domainEventHandler)
+                //{
+                //    handler.Handle(message);
+                //}
+            }
+            catch (Exception ex)
+            {
+                logger.LogError(
+                    $"Message {typeof(T).Name} - Error: {ex.Message} - StackTrace: {ex.StackTrace} - Source: {ex.Source}");
+                //non vogliamo che si blocchi il dispatch
+                //throw;
+            }
+
+            return Task.CompletedTask;
+        }
+
+        private IEnumerable<IMessageHandler<T>> GetMessageHandlers<T>() where T : class, IMessage
+        {
+            return new List<IMessageHandler<T>>(
+                subscriberRegistry.Get<T>()
+                    .Select(handlerType => this.messageHandlerFactory.GetMessageHandler<T>())
+            );
+        }
+
+        private IEnumerable<CommandHandler<T>> GetCommandHandlers<T>() where T : class, ICommand
+        {
+            return new List<CommandHandler<T>>(
+                subscriberRegistry.Get<T>()
+                    .Select(handlerType => commandHandlerFactory.GetCommandHandler<T>())
+                    .Cast<CommandHandler<T>>()
+                );
+        }
+
+        private IEnumerable<DomainEventHandler<T>> GetDomainEventHandlers<T>() where T : class, IDomainEvent
+        {
+            return new List<DomainEventHandler<T>>(
+                subscriberRegistry.Get<T>()
+                    .Select(handlerType => this.domainEventHandlerFactory.GetDomainEventHandler<T>())
+                    .Cast<DomainEventHandler<T>>()
+            );
         }
     }
 }

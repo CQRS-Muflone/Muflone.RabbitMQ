@@ -14,12 +14,12 @@ namespace Muflone.RabbitMQ.Factories
             this.serviceProvider = serviceProvider;
         }
 
-        public ICommandHandler<T> GetCommandHandlerAsync<T>() where T : class, ICommand
+        public ICommandHandler<T> GetCommandHandler<T>() where T : class, ICommand
         {
             return serviceProvider.GetService<ICommandHandler<T>>();
         }
 
-        public IEnumerable<ICommandHandler<ICommand>> GetCommandHandlers(Type handlerType) =>
-            serviceProvider.GetServices(handlerType) as IEnumerable<ICommandHandler<ICommand>>;
+        public IEnumerable<ICommandHandler<T>> GetCommandHandlers<T>(Type handlerType) where T : class, ICommand =>
+            serviceProvider.GetServices(handlerType) as IEnumerable<ICommandHandler<T>>;
     }
 }

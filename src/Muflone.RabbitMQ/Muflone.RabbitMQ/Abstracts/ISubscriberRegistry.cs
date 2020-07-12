@@ -8,10 +8,11 @@ namespace Muflone.RabbitMQ.Abstracts
     {
         void Register<TMessage, TImplementation>() where TMessage : class, IMessage
             where TImplementation : class, IMessageHandler<TMessage>;
-        void RegisterHandlers<TImplementation>(IMessage message)
-            where TImplementation : class, IMessageHandler<IMessage>;
+        void RegisterMessage<T>(T message) where T : class, IMessage;
+
+        IEnumerable<Type> Get<TMessage>() where TMessage : class, IMessage;
 
         Dictionary<Type, List<Type>> Observers { get; }
-        Dictionary<IMessage, List<Type>> Handlers { get; }
+        IList<IMessage> Messages { get; }
     }
 }
