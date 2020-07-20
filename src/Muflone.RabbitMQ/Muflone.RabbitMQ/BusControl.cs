@@ -20,36 +20,39 @@ namespace Muflone.RabbitMQ
     {
         private readonly BrokerProperties brokerProperties;
 
-        private AsyncEventingBasicConsumer rabbitMQConsumer;
         private readonly ILogger logger;
 
         private readonly ISubscriberRegistry subscriberRegistry;
-        private readonly IServiceProvider serviceProvider;
 
-        private readonly MessageHandlerFactory messageHandlerFactory;
-        private readonly CommandHandlerFactory commandHandlerFactory;
-        private readonly DomainEventHandlerFactory domainEventHandlerFactory;
+        private readonly IMessageHandlerFactory messageHandlerFactory;
+        private readonly ICommandHandlerFactory commandHandlerFactory;
+        private readonly IDomainEventHandlerFactory domainEventHandlerFactory;
+        private readonly IIntegrationEventHandlerFactory integrationEventHandlerFactory;
+
+        private readonly IRepositoryFactory repositoryFactory;
 
         public IModel RabbitMQChannel { get; private set; }
+        private AsyncEventingBasicConsumer rabbitMQConsumer;
 
         public BusControl(ISubscriberRegistry subscriberRegistry,
-            IServiceProvider serviceProvider,
+            IServiceProvider provider,
             IOptions<BrokerProperties> options,
             ILoggerFactory loggerFactory)
         {
             if (subscriberRegistry == null)
                 throw new NullReferenceException(nameof(subscriberRegistry));
 
-            if (subscriberRegistry.Observers == null || !subscriberRegistry.Observers.Any())
-                throw new Exception("No handlers found! At least one handler for message is required!");
+            //if (subscriberRegistry.CommandObservers == null || !subscriberRegistry.CommandObservers.Any())
+            //    throw new Exception("No commandHandlers found! At least one handler for message is required!");
 
             this.subscriberRegistry = subscriberRegistry;
-            this.serviceProvider = serviceProvider;
             this.brokerProperties = options.Value;
 
-            messageHandlerFactory = new MessageHandlerFactory(serviceProvider);
-            commandHandlerFactory = new CommandHandlerFactory(serviceProvider);
-            domainEventHandlerFactory = new DomainEventHandlerFactory(serviceProvider);
+            //this.messageHandlerFactory = messageHandlerFactory;
+            this.commandHandlerFactory = new CommandHandlerFactory(provider);
+            this.domainEventHandlerFactory = new DomainEventHandlerFactory(provider);
+            this.integrationEventHandlerFactory = new IntegrationEventHandlerFactory(provider);
+            this.repositoryFactory = new RepositoryFactory(provider);
 
             this.logger = loggerFactory.CreateLogger(GetType());
         }
@@ -80,7 +83,45 @@ namespace Muflone.RabbitMQ
             return Task.CompletedTask;
         }
 
-        public Task RegisterConsumer<T>(T message, CancellationToken cancellationToken = default) where T : class, IMessage
+        public Task RegisterCommandConsumers(Type message, CancellationToken cancellationToken = default)
+        {
+            if (cancellationToken.IsCancellationRequested)
+                cancellationToken.ThrowIfCancellationRequested();
+
+            RabbitMQChannel.QueueDeclare(message.Name, true, false, false, null);
+
+            rabbitMQConsumer = RabbitMqFactories.CreateAsyncEventingBasicConsumer(RabbitMQChannel);
+            rabbitMQConsumer.Received += (sender, @event) =>
+            {
+                // Deserialize RMQ message to Muflone Command
+                var command = (Command)RabbitMqMappers.MapRabbitMqMessageToMuflone(message, @event.Body);
+
+                // Looking for handlers in CommandObservers registry
+                var handlers = this.subscriberRegistry.CommandObservers[message];
+                foreach (var handlerType in handlers)
+                {
+                    var templateHandlerType = typeof(CommandHandler<>);
+                    //var x = (IStore)Activator.CreateInstance(constructedType, new object[] { someParameter });
+                    var commandHandler =
+                        Activator.CreateInstance(templateHandlerType, repositoryFactory.GetRepository(), logger);
+
+                    var obj = Activator.CreateInstance(
+                        Type.GetType($"{handlerType.FullName}, {handlerType.Assembly.FullName}", true, false));
+
+                    var parameters = new object[] {this.repositoryFactory.GetRepository(), this.logger};
+                    //var handlerInstance = Activator.CreateInstance(handlerType.Assembly.FullName, handlerType.FullName, false,
+                    //    BindingFlags.Default, (Binder) null, parameters, CultureInfo.InvariantCulture, new object[] {});
+                }
+
+                return Task.CompletedTask;
+            };
+
+            RabbitMQChannel.BasicConsume(message.Name, true, this.rabbitMQConsumer);
+
+            return Task.CompletedTask;
+        }
+
+        public Task RegisterConsumer<T>(CancellationToken cancellationToken = default) where T : class, IMessage
         {
             if (cancellationToken.IsCancellationRequested)
                 cancellationToken.ThrowIfCancellationRequested();
@@ -90,7 +131,7 @@ namespace Muflone.RabbitMQ
             rabbitMQConsumer = RabbitMqFactories.CreateAsyncEventingBasicConsumer(RabbitMQChannel);
             rabbitMQConsumer.Received += MessageConsumer<T>;
 
-            RabbitMQChannel.BasicConsume(typeof(T).Name, true, rabbitMQConsumer);
+            RabbitMQChannel.BasicConsume(typeof(T).Name, true, this.rabbitMQConsumer);
 
             return Task.CompletedTask;
         }
@@ -102,6 +143,12 @@ namespace Muflone.RabbitMQ
                 var message = RabbitMqMappers.MapRabbitMqMessageToMuflone<T>(@event.Body.ToArray());
 
                 var messageHandlers = GetMessageHandlers<T>();
+
+                //return new List<CommandHandler<T>>(
+                //    subscriberRegistry.Get<T>()
+                //        .Select(handlerType => commandHandlerFactory.GetCommandHandler<T>())
+                //        .Cast<CommandHandler<T>>()
+                //);
 
                 foreach (var handler in messageHandlers)
                 {
@@ -119,6 +166,7 @@ namespace Muflone.RabbitMQ
             return Task.CompletedTask;
         }
 
+        #region Commands
         public Task RegisterCommandConsumer<T>(CancellationToken cancellationToken = default)
             where T : class, ICommand
         {
@@ -127,10 +175,10 @@ namespace Muflone.RabbitMQ
 
             RabbitMQChannel.QueueDeclare(typeof(T).Name, true, false, false, null);
 
-            rabbitMQConsumer = RabbitMqFactories.CreateAsyncEventingBasicConsumer(RabbitMQChannel);
-            rabbitMQConsumer.Received += this.CommandConsumer<T>;
+            this.rabbitMQConsumer = RabbitMqFactories.CreateAsyncEventingBasicConsumer(RabbitMQChannel);
+            this.rabbitMQConsumer.Received += this.CommandConsumer<T>;
 
-            RabbitMQChannel.BasicConsume(typeof(T).Name, true, rabbitMQConsumer);
+            RabbitMQChannel.BasicConsume(typeof(T).Name, true, this.rabbitMQConsumer);
 
             return Task.CompletedTask;
         }
@@ -158,7 +206,9 @@ namespace Muflone.RabbitMQ
 
             return Task.CompletedTask;
         }
+        #endregion
 
+        #region DomainEvents
         public Task RegisterEventConsumer<T>(CancellationToken cancellationToken = default(CancellationToken)) where T : class, IEvent
         {
             if (cancellationToken.IsCancellationRequested)
@@ -166,10 +216,10 @@ namespace Muflone.RabbitMQ
 
             RabbitMQChannel.QueueDeclare(typeof(T).Name, true, false, false, null);
 
-            rabbitMQConsumer = RabbitMqFactories.CreateAsyncEventingBasicConsumer(RabbitMQChannel);
-            rabbitMQConsumer.Received += EventConsumer<T>;
+            this.rabbitMQConsumer = RabbitMqFactories.CreateAsyncEventingBasicConsumer(RabbitMQChannel);
+            this.rabbitMQConsumer.Received += EventConsumer<T>;
 
-            RabbitMQChannel.BasicConsume(typeof(T).Name, true, rabbitMQConsumer);
+            RabbitMQChannel.BasicConsume(typeof(T).Name, true, this.rabbitMQConsumer);
 
             return Task.CompletedTask;
         }
@@ -180,7 +230,7 @@ namespace Muflone.RabbitMQ
             {
                 var message = RabbitMqMappers.MapRabbitMqMessageToMuflone<T>(@event.Body.ToArray());
 
-                if (typeof(T) is IDomainEvent)
+                if (message.Version == 1)
                 {
                     //var domainEventHandler = GetDomainEventHandlers<T>();
                 }
@@ -200,6 +250,7 @@ namespace Muflone.RabbitMQ
 
             return Task.CompletedTask;
         }
+        #endregion
 
         private IEnumerable<IMessageHandler<T>> GetMessageHandlers<T>() where T : class, IMessage
         {
@@ -212,7 +263,7 @@ namespace Muflone.RabbitMQ
         private IEnumerable<CommandHandler<T>> GetCommandHandlers<T>() where T : class, ICommand
         {
             return new List<CommandHandler<T>>(
-                subscriberRegistry.Get<T>()
+                subscriberRegistry.GetCommands<T>()
                     .Select(handlerType => commandHandlerFactory.GetCommandHandler<T>())
                     .Cast<CommandHandler<T>>()
                 );
@@ -221,7 +272,7 @@ namespace Muflone.RabbitMQ
         private IEnumerable<DomainEventHandler<T>> GetDomainEventHandlers<T>() where T : class, IDomainEvent
         {
             return new List<DomainEventHandler<T>>(
-                subscriberRegistry.Get<T>()
+                subscriberRegistry.GetDomainEvents<T>()
                     .Select(handlerType => this.domainEventHandlerFactory.GetDomainEventHandler<T>())
                     .Cast<DomainEventHandler<T>>()
             );

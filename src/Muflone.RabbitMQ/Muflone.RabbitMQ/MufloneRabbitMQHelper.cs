@@ -4,8 +4,10 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
-using Muflone.Messages;
+using Muflone.Messages.Commands;
+using Muflone.Persistence;
 using Muflone.RabbitMQ.Abstracts;
+using Muflone.RabbitMQ.Factories;
 
 namespace Muflone.RabbitMQ
 {
@@ -19,12 +21,18 @@ namespace Muflone.RabbitMQ
                 var cancellationTokenSource = new CancellationTokenSource();
                 var cancellationToken = cancellationTokenSource.Token;
 
-                var busControl = new BusControl(subscriberRegistry, provider, options, new NullLoggerFactory());
+                var messageHandlerFactory = new MessageHandlerFactory(provider);
+                var commandHandlerFactory = new CommandHandlerFactory(provider);
+                var domainEventHandlerFactory = new DomainEventHandlerFactory(provider);
+
+                var busControl = new BusControl(subscriberRegistry,
+                    provider,
+                    options, new NullLoggerFactory());
                 busControl.Start(cancellationToken).GetAwaiter().GetResult();
 
-                foreach (var message in subscriberRegistry.Messages)
+                foreach (var observer in subscriberRegistry.CommandObservers)
                 {
-                    busControl.RegisterConsumer(message, cancellationToken);
+                    busControl.RegisterCommandConsumers(observer.Key, cancellationToken);
                 }
 
                 return busControl;

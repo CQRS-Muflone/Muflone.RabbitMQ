@@ -5,10 +5,8 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Muflone.Core;
-using Muflone.Messages;
 using Muflone.Messages.Commands;
 using Muflone.Persistence;
-using Muflone.RabbitMQ.Abstracts;
 using Xunit;
 
 namespace Muflone.RabbitMQ.IntegrationTests
@@ -35,7 +33,7 @@ namespace Muflone.RabbitMQ.IntegrationTests
             services.AddScoped<ICommandHandler<MyCommand>, MyCommandCommandHandler>();
 
             var subscriberRegistry = new SubscriberRegistry();
-            subscriberRegistry.Register<MyCommand, MyCommandCommandHandler>();
+            subscriberRegistry.RegisterCommand<MyCommand, MyCommandCommandHandler>();
 
             services.AddMufloneRabbitMQ(options, subscriberRegistry);
 
@@ -94,21 +92,6 @@ namespace Muflone.RabbitMQ.IntegrationTests
         public static class TestResult
         {
             public static string CommandContent;
-        }
-
-        public class MessageHandlerFactory : IMessageHandlerFactory
-        {
-            private readonly IServiceProvider _serviceProvider;
-
-            public MessageHandlerFactory(IServiceProvider serviceProvider)
-            {
-                this._serviceProvider = serviceProvider;
-            }
-
-            public IMessageHandler GetMessageHandler(Type handlerType)
-            {
-                return this._serviceProvider.GetService<IMessageHandler<MyCommand>>();
-            }
         }
     }
 }

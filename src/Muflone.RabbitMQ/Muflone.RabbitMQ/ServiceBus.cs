@@ -38,7 +38,7 @@ namespace Muflone.RabbitMQ
             try
             {
                 // Register Consumer
-                busControl.RegisterCommandConsumer<T>();
+                //busControl.RegisterCommandConsumer<T>();
 
                 var messageBody = RabbitMqMappers.MapMufloneMessageToRabbitMq(command);
                 this.busControl.RabbitMQChannel.BasicPublish("", command.GetType().Name, null, messageBody);
@@ -60,7 +60,7 @@ namespace Muflone.RabbitMQ
                 // Register Consumer
                 this.busControl.RegisterEventConsumer<T>();
 
-                this.busControl.RabbitMQChannel.ExchangeDeclare(@event.GetType().Name, ExchangeType.Fanout);
+                this.busControl.RabbitMQChannel.ExchangeDeclare(@event.GetType().Name, ExchangeType.Topic);
 
                 var messageBody = RabbitMqMappers.MapMufloneMessageToRabbitMq(@event);
                 this.busControl.RabbitMQChannel.BasicPublish(@event.GetType().Name, "", false, null, messageBody);
@@ -72,11 +72,6 @@ namespace Muflone.RabbitMQ
                 this.logger.LogError($"StackTrace: {ex.StackTrace}, Source: {ex.Source}");
                 throw;
             }
-        }
-
-        public Task Publish(IMessage @event)
-        {
-            throw new NotImplementedException();
         }
 
         [Obsolete("With RabbitMQ, handlers must be registered in the busControl")]

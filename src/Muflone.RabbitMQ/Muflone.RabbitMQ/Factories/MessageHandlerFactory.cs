@@ -1,10 +1,11 @@
 ﻿using System;
 using Microsoft.Extensions.DependencyInjection;
 using Muflone.Messages;
+using Muflone.RabbitMQ.Abstracts;
 
 namespace Muflone.RabbitMQ.Factories
 {
-    public class MessageHandlerFactory
+    public class MessageHandlerFactory : IMessageHandlerFactory
     {
         private readonly IServiceProvider serviceProvider;
 

@@ -1,11 +1,11 @@
 ﻿using System;
-using System.Collections.Generic;
 using Muflone.Messages.Commands;
 using Microsoft.Extensions.DependencyInjection;
+using Muflone.RabbitMQ.Abstracts;
 
 namespace Muflone.RabbitMQ.Factories
 {
-    public class CommandHandlerFactory
+    public class CommandHandlerFactory : ICommandHandlerFactory
     {
         private readonly IServiceProvider serviceProvider;
 
@@ -18,8 +18,5 @@ namespace Muflone.RabbitMQ.Factories
         {
             return serviceProvider.GetService<ICommandHandler<T>>();
         }
-
-        public IEnumerable<ICommandHandler<T>> GetCommandHandlers<T>(Type handlerType) where T : class, ICommand =>
-            serviceProvider.GetServices(handlerType) as IEnumerable<ICommandHandler<T>>;
     }
 }
